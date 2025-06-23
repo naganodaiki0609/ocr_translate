@@ -8,27 +8,45 @@ from deep_translator import GoogleTranslator
 from reportlab.lib.utils import simpleSplit
 import re
 from reportlab.pdfbase.pdfmetrics import stringWidth
+import os
+from deep_translator import DeeplTranslator
 
 
 # 段落ごとに翻訳し、翻訳結果を句点（。）で分割して文単位に整形
 def translate_by_paragraph(text):
     paragraphs = re.split(r"\n\s*\n", text)
-    translated_sentences = []
+    translated_paragraphs = []
+    api_key = os.getenv("DEEPL_API_KEY")
 
+    if not api_key:
+        # 環境変数が設定されていない場合は、エラーメッセージを表示して処理を中断する
+        raise ValueError("環境変数 'DEEPL_API_KEY' が設定されていません。")
+
+    # translator = GoogleTranslator(source="en", target="ja")
+    translator = DeeplTranslator(
+        api_key=api_key, source="en", target="ja", use_free_api=True
+    )
     for i, para in enumerate(paragraphs):
         para = para.strip().replace("\n", " ")
         if not para:
             continue
         try:
             print(f"[{para}]")  # デバッグ表示
-            translated = GoogleTranslator(source="en", target="ja").translate(para)
-            sentences = [s.strip() for s in translated.split("。") if s.strip()]
-            translated_sentences.extend([s + "。" for s in sentences])
+            print("--- APIに送信する英文 ---")
+            print(para)
+            print("-------------------------")
+            translated = translator.translate(para)
+            if translated:  # 翻訳結果がNoneや空でないことを確認
+                translated_paragraphs.append(translated)
+
+            print(f"--- APIからの翻訳結果 ---\n{translated}\n-------------------------")
+            # sentences = [s.strip() for s in translated.split("。") if s.strip()]
+            # translated_sentences.extend([s + "。" for s in sentences])
         except Exception as e:
             print(f"⚠️ 翻訳失敗: {e}")
-            translated_sentences.append(para)
+            translated_paragraphs.append(para)
 
-    return translated_sentences
+    return translated_paragraphs
 
 
 def clean_ocr_text(text):
@@ -63,7 +81,7 @@ def clean_ocr_text(text):
             continue
 
         # 無意味な記号列
-        if re.search(r"[—–~_=◆→★■※●○□◎✕✖]", stripped_line):
+        if re.search(r"[=◆→★■※●○□◎✕✖]", stripped_line):
             continue
 
         # 複数のスペースを1つにまとめる
@@ -138,8 +156,11 @@ def wrap_text_japanese(text, font_name, font_size, max_width):
 
 
 # 実行部分（パスは環境に合わせて修正）
-pdf_path = "/Users/naganodaiki/Desktop/中央大学理工英語/2024.pdf"
+pdf_path = (
+    "/Users/naganodaiki/Desktop/英語過去問題/東京理科大学総域理工英語/2024_den.pdf"
+)
 raw_text = extract_text_from_pdf(pdf_path)
 clean_text = clean_ocr_text(raw_text)
 translated_lines = translate_by_paragraph(clean_text)
+print("日本語", translated_lines)
 output_translated_pdf(translated_lines)
